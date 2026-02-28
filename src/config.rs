@@ -31,6 +31,7 @@ impl BackupConfig {
 
 
         let server_ip = required_env("BACKUP_SERVER_IP")?;
+        let ssh_port = env::var("BACKUP_SSH_PORT").unwrap_or_else(|_| "22".to_string());
         let ssh_user = required_env("BACKUP_SSH_USER")?;
         let private_key_path = PathBuf::from(required_env("BACKUP_PRIVATE_KEY_PATH")?);
         let private_key_passphrase = env::var("BACKUP_PRIVATE_KEY_PASSPHRASE").ok();
@@ -41,7 +42,7 @@ impl BackupConfig {
             .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
             .unwrap_or(false);
 
-        let session = match connect_ssh(server_ip.as_str(), ssh_user.as_str(), private_key_path.as_path(), private_key_passphrase.as_deref()) {
+        let session = match connect_ssh(server_ip.as_str(), ssh_port.as_str(), ssh_user.as_str(), private_key_path.as_path(), private_key_passphrase.as_deref()) {
             Ok(sess) => sess,
             Err(e) => {
                 log_error(&format!("Failed to establish SSH connection: {}", e));

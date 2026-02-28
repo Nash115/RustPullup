@@ -7,8 +7,8 @@ use indicatif::ProgressBar;
 use crate::config::BackupConfig;
 use crate::utils::{AppResult, log_info, log_warn, shell_escape_single_quotes};
 
-pub fn connect_ssh(server_ip: &str, ssh_user: &str, private_key_path: &Path, private_key_passphrase: Option<&str>) -> AppResult<Session> {
-    let tcp = TcpStream::connect(format!("{}:22", server_ip))?;
+pub fn connect_ssh(server_ip: &str, ssh_port: &str, ssh_user: &str, private_key_path: &Path, private_key_passphrase: Option<&str>) -> AppResult<Session> {
+    let tcp = TcpStream::connect(format!("{}:{}", server_ip, ssh_port))?;
     
     let mut session = Session::new()?;
     session.set_tcp_stream(tcp);
