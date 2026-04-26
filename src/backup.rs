@@ -3,7 +3,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::config::BackupConfig;
 use crate::manifest::{SyncStatus, build_local_manifest, get_remote_manifest};
 use crate::ssh::sync_file;
-use crate::utils::{AppResult, log_info, log_error, create_hardlink};
+use crate::utils::{AppResult, create_hardlink, log_error, log_info};
 
 pub fn start_backup(config: &BackupConfig) -> AppResult<()> {
     let remote_manifest = get_remote_manifest(config)?;
@@ -19,7 +19,12 @@ pub fn start_backup(config: &BackupConfig) -> AppResult<()> {
 
     let total_bytes_pull: u64 = files_to_pull
         .iter()
-        .map(|path| remote_manifest.get(path).map(|meta| meta.size()).unwrap_or(0))
+        .map(|path| {
+            remote_manifest
+                .get(path)
+                .map(|meta| meta.size())
+                .unwrap_or(0)
+        })
         .sum();
 
     let progress_bar_pull = ProgressBar::new(total_bytes_pull);
@@ -29,7 +34,7 @@ pub fn start_backup(config: &BackupConfig) -> AppResult<()> {
     );
 
     std::fs::create_dir_all(config.local_backup_new_folder())?;
-    
+
     for file in files_to_pull {
         // progress_bar_pull.set_message(file.clone());
         let local_path = config
@@ -54,12 +59,17 @@ pub fn start_backup(config: &BackupConfig) -> AppResult<()> {
 
     // Create hardlinks for unchanged files
 
-    log_info(&format!("Creating hardlinks for {} unchanged files.", files_to_hardlink.len()));
+    log_info(&format!(
+        "Creating hardlinks for {} unchanged files.",
+        files_to_hardlink.len()
+    ));
 
     let progress_bar_hardlink = ProgressBar::new(files_to_hardlink.len() as u64);
     progress_bar_hardlink.set_style(
-        ProgressStyle::with_template("[{elapsed_precise}] [{bar:40.green/blue}] {pos}/{len} ETA: {eta} {msg}")?
-            .progress_chars("#>-"),
+        ProgressStyle::with_template(
+            "[{elapsed_precise}] [{bar:40.green/blue}] {pos}/{len} ETA: {eta} {msg}",
+        )?
+        .progress_chars("#>-"),
     );
 
     for file in files_to_hardlink {
@@ -75,7 +85,10 @@ pub fn start_backup(config: &BackupConfig) -> AppResult<()> {
             .join(file.trim_start_matches('/'));
 
         if let Err(error) = create_hardlink(&old_backup_file, &new_backup_file) {
-            log_error(&format!("Failed to create hard link for {}: {}", file, error));
+            log_error(&format!(
+                "Failed to create hard link for {}: {}",
+                file, error
+            ));
         }
     }
     progress_bar_hardlink.finish_with_message("Hardlink creation completed");

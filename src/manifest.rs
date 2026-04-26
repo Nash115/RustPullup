@@ -14,7 +14,10 @@ pub struct FileMeta {
 }
 impl FileMeta {
     pub fn new(size: u64, modified_time: u64) -> Self {
-        Self { size, modified_time }
+        Self {
+            size,
+            modified_time,
+        }
     }
 
     pub fn size(&self) -> u64 {
@@ -27,19 +30,24 @@ pub struct SyncStatus {
     to_hardlink: Vec<String>,
 }
 impl SyncStatus {
-    pub fn get(remote_manifest: &HashMap<String, FileMeta>, local_manifest: &HashMap<String, FileMeta>) -> SyncStatus {
+    pub fn get(
+        remote_manifest: &HashMap<String, FileMeta>,
+        local_manifest: &HashMap<String, FileMeta>,
+    ) -> SyncStatus {
         let mut to_pull = Vec::new();
         let mut to_hardlink = Vec::new();
 
         for (path, remote_meta) in remote_manifest {
             match local_manifest.get(path) {
                 Some(local_meta) => {
-                    if local_meta.size != remote_meta.size || local_meta.modified_time < remote_meta.modified_time {
+                    if local_meta.size != remote_meta.size
+                        || local_meta.modified_time < remote_meta.modified_time
+                    {
                         to_pull.push(path.clone());
                     } else {
                         to_hardlink.push(path.clone());
                     }
-                },
+                }
                 None => to_pull.push(path.clone()),
             }
         }
@@ -49,7 +57,7 @@ impl SyncStatus {
             to_hardlink,
         }
     }
-    
+
     pub fn to_pull(&self) -> &Vec<String> {
         &self.to_pull
     }
@@ -100,28 +108,22 @@ fn parse_manifest(manifest: &str) -> HashMap<String, FileMeta> {
 
 pub fn get_remote_manifest(config: &BackupConfig) -> AppResult<HashMap<String, FileMeta>> {
     let escaped_remote_dir = shell_escape_single_quotes(config.remote_path());
-    let command = format!("find '{}' -type f -printf '%p|%s|%Ts\\n'", escaped_remote_dir);
-    
+
+    let sudo = if config.use_sudo() { "sudo " } else { "" };
+
+    let command = format!(
+        "{}find '{}' -type f -printf '%p|%s|%Ts\\n'",
+        sudo, escaped_remote_dir
+    );
+
     let output = execute_remote_command(config.session(), &command)?;
 
-    // let mut channel = config.session().channel_session()?;
-    
-    // channel.exec(&command)?;
-    
-    // let mut output = String::new();
-    // channel.read_to_string(&mut output)?;
-    // channel.send_eof()?;
-    // channel.wait_eof()?;
-    // channel.close()?;
-    // channel.wait_close()?;
-
-    // if channel.exit_status()? != 0 {
-    //     return Err(io::Error::other("Remote find command failed").into());
-    // }
-    
     let parsed_manifest = parse_manifest(&output);
 
-    log_info(&format!("Remote manifest built: {} files found.", parsed_manifest.len()));
+    log_info(&format!(
+        "Remote manifest built: {} files found.",
+        parsed_manifest.len()
+    ));
 
     Ok(parsed_manifest)
 }
@@ -153,7 +155,7 @@ pub fn build_local_manifest(config: &BackupConfig) -> AppResult<HashMap<String, 
                 let mut p = PathBuf::from("/");
                 p.push(value);
                 p
-            },
+            }
             Err(error) => {
                 log_warn(&format!("Skipping entry with invalid path: {error}"));
                 continue;
@@ -163,7 +165,8 @@ pub fn build_local_manifest(config: &BackupConfig) -> AppResult<HashMap<String, 
         if path.is_file() {
             if let Ok(metadata) = entry.metadata() {
                 let size = metadata.len();
-                let mtime = metadata.modified()
+                let mtime = metadata
+                    .modified()
                     .unwrap_or(SystemTime::now())
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
@@ -174,6 +177,9 @@ pub fn build_local_manifest(config: &BackupConfig) -> AppResult<HashMap<String, 
         }
     }
 
-    log_info(&format!("Local manifest built: {} files found.", manifest.len()));
+    log_info(&format!(
+        "Local manifest built: {} files found.",
+        manifest.len()
+    ));
     Ok(manifest)
 }

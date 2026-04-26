@@ -1,25 +1,26 @@
-use std::net::TcpStream;
-use std::io::{self, Read, Write};
-use std::path::Path;
-use ssh2::Session;
 use indicatif::ProgressBar;
+use ssh2::Session;
+use std::io::{self, Read, Write};
+use std::net::TcpStream;
+use std::path::Path;
 
 use crate::config::BackupConfig;
 use crate::utils::{AppResult, log_info, log_warn, shell_escape_single_quotes};
 
-pub fn connect_ssh(server_ip: &str, ssh_port: &str, ssh_user: &str, private_key_path: &Path, private_key_passphrase: Option<&str>) -> AppResult<Session> {
+pub fn connect_ssh(
+    server_ip: &str,
+    ssh_port: &str,
+    ssh_user: &str,
+    private_key_path: &Path,
+    private_key_passphrase: Option<&str>,
+) -> AppResult<Session> {
     let tcp = TcpStream::connect(format!("{}:{}", server_ip, ssh_port))?;
-    
+
     let mut session = Session::new()?;
     session.set_tcp_stream(tcp);
     session.handshake()?;
 
-    session.userauth_pubkey_file(
-        ssh_user,
-        None,
-        private_key_path,
-        private_key_passphrase,
-    )?;
+    session.userauth_pubkey_file(ssh_user, None, private_key_path, private_key_passphrase)?;
 
     if !session.authenticated() {
         return Err(io::Error::new(
@@ -29,11 +30,16 @@ pub fn connect_ssh(server_ip: &str, ssh_port: &str, ssh_user: &str, private_key_
         .into());
     }
     log_info("SSH connection established and authenticated.");
-    
+
     Ok(session)
 }
 
-pub fn sync_file(config: &BackupConfig, remote_path: &str, local_path: &Path, progress_bar: &ProgressBar) -> AppResult<()> {
+pub fn sync_file(
+    config: &BackupConfig,
+    remote_path: &str,
+    local_path: &Path,
+    progress_bar: &ProgressBar,
+) -> AppResult<()> {
     if config.use_sudo() {
         return sync_file_sudo(config, remote_path, local_path, progress_bar);
     }
@@ -53,13 +59,21 @@ pub fn sync_file(config: &BackupConfig, remote_path: &str, local_path: &Path, pr
             Ok(())
         }
         Err(_) => {
-            log_warn(&format!("scp_recv failed for '{}', retrying with sudo cat.", remote_path));
+            log_warn(&format!(
+                "scp_recv failed for '{}', retrying with sudo cat.",
+                remote_path
+            ));
             sync_file_sudo(config, remote_path, local_path, progress_bar)
         }
     }
 }
 
-fn sync_file_sudo(config: &BackupConfig, remote_path: &str, local_path: &Path, progress_bar: &ProgressBar) -> AppResult<()> {
+fn sync_file_sudo(
+    config: &BackupConfig,
+    remote_path: &str,
+    local_path: &Path,
+    progress_bar: &ProgressBar,
+) -> AppResult<()> {
     let quoted_path = format!("'{}'", shell_escape_single_quotes(remote_path));
     let mut channel = config.session().channel_session()?;
     channel.exec(&format!("sudo cat {}", quoted_path))?;
@@ -80,7 +94,10 @@ fn sync_file_sudo(config: &BackupConfig, remote_path: &str, local_path: &Path, p
     if exit_status != 0 {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
-            format!("sudo cat {} failed with exit status {}", remote_path, exit_status),
+            format!(
+                "sudo cat {} failed with exit status {}",
+                remote_path, exit_status
+            ),
         )
         .into());
     }
@@ -95,6 +112,18 @@ pub fn execute_remote_command(session: &Session, command: &str) -> AppResult<Str
     let mut output = String::new();
     channel.read_to_string(&mut output)?;
     channel.wait_close()?;
+
+    if channel.exit_status()? != 0 && !output.trim().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "Command '{}' failed with exit status {}",
+                command,
+                channel.exit_status()?
+            ),
+        )
+        .into());
+    }
 
     Ok(output)
 }

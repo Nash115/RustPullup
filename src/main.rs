@@ -6,13 +6,13 @@ mod utils;
 
 use crate::backup::start_backup;
 use crate::config::BackupConfig;
-use crate::ssh::{execute_pre_command, execute_post_command};
-use crate::utils::{log_info, log_error};
+use crate::ssh::{execute_post_command, execute_pre_command};
+use crate::utils::{log_error, log_info};
 
 fn main() {
     match dotenvy::dotenv() {
         Ok(_) => log_info("Environment variables loaded from .env."),
-        Err(_) => {},
+        Err(_) => {}
     };
 
     let config = match BackupConfig::new() {
@@ -30,7 +30,7 @@ fn main() {
             } else {
                 log_info("Pre-command executed successfully with no output.");
             }
-        },
+        }
         Err(e) => {
             log_error(format!("Failed to execute pre-command: {}", e).as_str());
             std::process::exit(1);
@@ -40,7 +40,7 @@ fn main() {
     match start_backup(&config) {
         Err(e) => {
             log_error(format!("Backup process failed: {}", e).as_str());
-        },
+        }
         _ => {}
     };
 
@@ -51,11 +51,10 @@ fn main() {
             } else {
                 log_info("Post-command executed successfully with no output.");
             }
-        },
+        }
         Err(e) => {
             log_error(format!("Failed to execute post-command: {}", e).as_str());
             std::process::exit(1);
         }
     };
-
 }

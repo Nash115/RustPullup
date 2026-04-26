@@ -34,8 +34,11 @@ pub fn create_hardlink(old_backup_file: &Path, new_backup_file: &Path) -> AppRes
     match fs::hard_link(old_backup_file, new_backup_file) {
         Ok(_) => Ok(()),
         Err(e) => {
-            log_error(&format!("Failed to create hard link from {:?} to {:?}: {}", old_backup_file, new_backup_file, e));
+            log_error(&format!(
+                "Failed to create hard link from {:?} to {:?}: {}",
+                old_backup_file, new_backup_file, e
+            ));
             Err(e.into())
-        },
+        }
     }
 }

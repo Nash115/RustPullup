@@ -1,11 +1,11 @@
+use ssh2::Session;
 use std::env;
 use std::io;
 use std::path::PathBuf;
-use ssh2::Session;
 
-use crate::utils::{AppResult, log_error};
 use crate::manifest::get_last_backup_folder;
 use crate::ssh::connect_ssh;
+use crate::utils::{AppResult, log_error};
 
 pub struct BackupConfig {
     session: Session,
@@ -26,9 +26,8 @@ impl BackupConfig {
         }
 
         let local_backup_previous_folder = get_last_backup_folder(&local_backup_repo_path)?;
-        let local_backup_new_folder = local_backup_repo_path
-            .join(chrono::Utc::now().format("%Y%m%d%H%M%S").to_string());
-
+        let local_backup_new_folder =
+            local_backup_repo_path.join(chrono::Utc::now().format("%Y%m%d%H%M%S").to_string());
 
         let server_ip = required_env("BACKUP_SERVER_IP")?;
         let ssh_port = env::var("BACKUP_SSH_PORT").unwrap_or_else(|_| "22".to_string());
@@ -42,7 +41,13 @@ impl BackupConfig {
             .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
             .unwrap_or(false);
 
-        let session = match connect_ssh(server_ip.as_str(), ssh_port.as_str(), ssh_user.as_str(), private_key_path.as_path(), private_key_passphrase.as_deref()) {
+        let session = match connect_ssh(
+            server_ip.as_str(),
+            ssh_port.as_str(),
+            ssh_user.as_str(),
+            private_key_path.as_path(),
+            private_key_passphrase.as_deref(),
+        ) {
             Ok(sess) => sess,
             Err(e) => {
                 log_error(&format!("Failed to establish SSH connection: {}", e));
