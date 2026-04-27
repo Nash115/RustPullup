@@ -118,7 +118,12 @@ pub fn get_remote_manifest(config: &BackupConfig) -> AppResult<HashMap<String, F
 
     let output = execute_remote_command(config.session(), &command)?;
 
-    let parsed_manifest = parse_manifest(&output);
+    let mut parsed_manifest = parse_manifest(&output);
+
+    let excludes = config.excludes();
+    if !excludes.is_empty() {
+        parsed_manifest.retain(|path, _| !excludes.is_match(path));
+    }
 
     log_info(&format!(
         "Remote manifest built: {} files found.",

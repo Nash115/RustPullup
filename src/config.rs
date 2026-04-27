@@ -1,6 +1,9 @@
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use ssh2::Session;
 use std::env;
+use std::fs::File;
 use std::io;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
 use crate::manifest::get_last_backup_folder;
@@ -15,6 +18,7 @@ pub struct BackupConfig {
     pre_cmd: Option<String>,
     post_cmd: Option<String>,
     use_sudo: bool,
+    excludes: GlobSet,
 }
 impl BackupConfig {
     pub fn new() -> AppResult<Self> {
@@ -55,6 +59,29 @@ impl BackupConfig {
             }
         };
 
+        let mut globset_builder = GlobSetBuilder::new();
+        if let Ok(exclude_path) = env::var("BACKUP_EXCLUDE_FILE") {
+            if let Ok(file) = File::open(&exclude_path) {
+                let reader = BufReader::new(file);
+                for line in reader.lines().map_while(Result::ok) {
+                    let line = line.trim();
+                    if !line.is_empty() && !line.starts_with('#') {
+                        if let Ok(glob) = Glob::new(line) {
+                            globset_builder.add(glob);
+                        }
+                    }
+                }
+            } else {
+                log_error(&format!(
+                    "Failed to open exclude file at '{}'. No patterns will be excluded.",
+                    exclude_path
+                ));
+            }
+        }
+        let excludes = globset_builder
+            .build()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
         Ok(BackupConfig {
             session,
             remote_path,
@@ -63,6 +90,7 @@ impl BackupConfig {
             pre_cmd,
             post_cmd,
             use_sudo,
+            excludes,
         })
     }
 
@@ -86,6 +114,9 @@ impl BackupConfig {
     }
     pub fn use_sudo(&self) -> bool {
         self.use_sudo
+    }
+    pub fn excludes(&self) -> &GlobSet {
+        &self.excludes
     }
 }
 
